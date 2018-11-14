@@ -1,5 +1,5 @@
 /*
-Adafruit Arduino - Lesson 3. RGB LED
+This flashes purple and orange, assuming the light level is low enough
 */
 
 int redPin = 9;
