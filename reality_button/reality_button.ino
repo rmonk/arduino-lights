@@ -1,26 +1,42 @@
 #include <FastLED.h>
 #include <VibrationMotor.h>
 
+//
+// Overall flow:
+// loop() is called which runs an idlecycle() unless the button has been hit, in which case it
+// starts to run chargecycle()
+//
+// if the button is pushed during chargecycle() after 500ms, go to charging_error()
+//  charging_error() goes to cooldown afterwards then resets back to idle
+//
+// after chargecycle() finishes, explode(), then cooldown()
+
+// Number of LEDS on the strip
 #define NUM_LEDS 12
+
+// LED data pin
 #define DATA_PIN 7
+
+// Push button pin
 #define BUTTON_PIN 12
-#define MINCYCLE 500
-#define CHARGESTEPS 10
+
+// Piezo speaker pin
 #define BUZZERPIN 8
+
+// Vibration motor pin
 #define VIBMOTORPIN 5
 
-enum state : byte {IDLE, CHARGING, COOLDOWN};
+//
+// Global variables
+//
 int idlecounter = 0;
-
-void cycle(void);
-
-CRGB leds[NUM_LEDS];
 unsigned long LastCycle = 0;
-
-state cyclestate = IDLE;
-
+// LED Configuration
+CRGB leds[NUM_LEDS];
+// Vibration configuration
 VibrationMotor vibe(VIBMOTORPIN);
 
+// Configure the LED strip, Button, and Buzzer for start state
 void setup() {
   FastLED.addLeds<WS2812B, DATA_PIN, GRB>(leds, NUM_LEDS);
   FastLED.setBrightness(255);
@@ -28,6 +44,7 @@ void setup() {
   pinMode(BUZZERPIN, OUTPUT);
 }
 
+// do a blue light chase around the LED strip
 void idlecycle() {
 
   blackout();
@@ -42,9 +59,9 @@ void idlecycle() {
   FastLED.show();
 }
 
+// Black out all lights and zero them.  Also turn off the vibration motor
 void blackout() {
 
-  // Black out all the lights
   for (int i=0; i < NUM_LEDS; i++) {
     leds[i] = CRGB::Black;  
   }
@@ -54,6 +71,7 @@ void blackout() {
   
 }
 
+// Error mode.  Flash the leds red and beep, then black out and go to cooldown mode
 void charging_error() {
   int duration = 5000;
   unsigned long starttime;
@@ -61,6 +79,7 @@ void charging_error() {
   starttime = millis();
   blackout();
 
+  // Run for duration milliseconds
   while ( millis() - starttime < duration) {
     fill_solid( leds, NUM_LEDS, CRGB( 255, 0, 0) );
     FastLED.show();
@@ -73,6 +92,7 @@ void charging_error() {
   cooldown();
 }
 
+// Charging up!  Pulse the lights yellow, beep, and vibrate.  Getting faster and faster
 void chargecycle() {
   byte buttonState;
   int stepdelay = 10;
@@ -89,7 +109,9 @@ void chargecycle() {
   effecttime = 0;
   brightness = 0;
   while ( effecttime < length) {
+    // How long has it been running?
     effecttime = millis() - offset;
+    // test the button only after 500 ms
     if ( effecttime > 500) {
       buttonState = digitalRead(BUTTON_PIN);
       if (buttonState == LOW ) {
@@ -98,7 +120,7 @@ void chargecycle() {
         return;
       }
     }
-    rate = 60 + (effecttime/1000 * 60);
+    rate = 60 + floor(effecttime/1000 * 60);
     prev_brightness = brightness;
     brightness =  round((beatsin8(rate, 0, 255, 0, 128) * 0.9) + (prev_brightness * 0.1));
     fill_solid( leds, NUM_LEDS, CRGB( brightness, brightness, 0) );
@@ -117,6 +139,7 @@ void chargecycle() {
   explode();
 }
 
+// BOOM!  White light, then sparkles as it fades out.
 void explode() {
   unsigned long starttime;
   int length = 5000;
@@ -140,6 +163,7 @@ void explode() {
   cooldown();
 }
 
+// Slow red pulse while it "recharges"
 void cooldown() {
   unsigned long starttime;
   int length = 10000;
@@ -160,15 +184,6 @@ void cooldown() {
   delay(50);
   tone(BUZZERPIN, 880, 50);
   blackout();
-}
-
-void cycle() {
-  for (int i = 0; i < NUM_LEDS; i++) {
-    leds[i].setRGB( random(0,255), random(0,255), random(0,255));
-  }
-  
-  FastLED.show();
-
 }
 
 void loop() {
